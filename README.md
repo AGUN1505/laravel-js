@@ -95,11 +95,18 @@ Semua route JSON, auth pakai JWT (`Authorization: Bearer <token>`).
 
 **Protected (butuh `Authorization: Bearer <token>`):**
 - `GET /api/v1/me` → Current user
-- `GET /api/v1/users` → List users
-- `POST /api/v1/users` → Create user
-- `GET /api/v1/users/:id` → Show user
-- `PUT /api/v1/users/:id` → Update user
-- `DELETE /api/v1/users/:id` → Delete user
+- `GET /api/v1/users` → List users (perm: `view users`)
+- `POST /api/v1/users` → Create user (perm: `create users`)
+- `GET /api/v1/users/:id` → Show user (perm: `view users`)
+- `PUT /api/v1/users/:id` → Update user (perm: `edit users`)
+- `DELETE /api/v1/users/:id` → Delete user (superadmin only)
+- `POST /api/v1/users/:id/roles` → Assign roles (superadmin only)
+- `GET /api/v1/roles` → List roles (perm: `view roles`)
+- `GET /api/v1/roles/:id` → Show role (perm: `view roles`)
+- `POST /api/v1/roles` → Create role (superadmin only)
+- `PUT /api/v1/roles/:id` → Update role (superadmin only)
+- `DELETE /api/v1/roles/:id` → Delete role (superadmin only)
+- `GET /api/v1/permissions` → List permissions (superadmin only)
 
 ## Route Helper (Laravel-style)
 
@@ -139,6 +146,112 @@ Method yang tersedia: `get`, `post`, `put`, `patch`, `delete`, `prefix`, `middle
 
 - Email: `admin@example.com`
 - Password: `password`
+
+## Role & Permission (Spatie-style)
+
+Sistem role/permission lengkap mirip Spatie laravel-permission.
+
+### Default Roles & Permissions
+
+Setelah `node artisan.js db:seed`:
+
+**Roles:** `superadmin`, `admin`, `editor`, `user`
+**Permissions:** `view/create/edit/delete users`, `view/create/edit/delete posts`, `view/create/edit/delete roles`
+
+**Default user:**
+- `super@example.com` → role `superadmin` (bypass semua permission check)
+- `admin@example.com` → role `admin` (CRUD users + posts)
+- `john@example.com` → role `user` (`view posts` only)
+
+### Superadmin
+
+Role `superadmin` memiliki akses penuh:
+- `user.hasPermissionTo(...)` selalu return `true`
+- Middleware `hasRole`, `hasPermission`, `hasAllRoles`, `hasRoleOrPermission` selalu lolos
+- Hanya superadmin yang bisa mengelola roles & users (create/delete)
+
+```js
+const { requireSuperAdmin } = require('./app/Http/Middleware/Authorize');
+
+r.middleware(requireSuperAdmin).group((r) => {
+  r.post('/roles', RoleController.store);
+});
+
+// Cek manual:
+await user.isSuperAdmin();
+```
+
+Role `superadmin` dilindungi: tidak bisa dihapus atau diubah lewat API.
+
+### API di Model
+
+```js
+const { User, Role, Permission } = require('./app/Models');
+
+// Assign / sync roles
+await user.assignRole('admin');
+await user.assignRole('admin', 'editor');
+await user.syncRoles('user');           // replace
+await user.removeRole('admin');
+
+// Check roles
+await user.hasRole('admin');
+await user.hasAnyRole('admin', 'editor');
+await user.hasAllRoles('admin', 'verified');
+await user.getRoleNames();              // ['admin']
+
+// Direct permissions ke user
+await user.givePermissionTo('edit posts');
+await user.syncPermissions('view posts', 'edit posts');
+await user.revokePermissionTo('edit posts');
+
+// Check permissions (direct + via role)
+await user.hasPermissionTo('edit posts');
+await user.hasAnyPermission('view posts', 'edit posts');
+await user.hasDirectPermission('edit posts');
+await user.hasPermissionViaRole('edit posts');
+await user.getAllPermissions();
+await user.getPermissionNames();
+
+// Permissions di Role
+await role.givePermissionTo('edit posts');
+await role.syncPermissions('view posts', 'edit posts');
+await role.revokePermissionTo('edit posts');
+await role.hasPermissionTo('edit posts');
+```
+
+### Middleware (untuk routes)
+
+```js
+const { hasRole, hasPermission, hasAllRoles, hasRoleOrPermission }
+  = require('./app/Http/Middleware/Authorize');
+
+r.middleware(hasRole('admin')).group(...)
+r.middleware(hasRole('admin', 'editor')).group(...)         // OR
+r.middleware(hasAllRoles('admin', 'verified')).group(...)   // AND
+r.middleware(hasPermission('edit posts')).group(...)
+r.middleware(hasRoleOrPermission(['admin'], ['edit posts'])).group(...)
+```
+
+Middleware harus dipasang **setelah** middleware `auth` karena butuh `req.user`.
+
+### Contoh route dengan gating
+
+```js
+r.middleware(auth).group((r) => {
+  r.prefix('/users').group((r) => {
+    r.middleware(hasPermission('view users')).group((r) => {
+      r.get('/', UserController.index);
+      r.get('/:id', UserController.show);
+    });
+    r.middleware(hasRole('admin')).group((r) => {
+      r.delete('/:id', UserController.destroy);
+    });
+  });
+});
+```
+
+Response endpoint `/api/v1/me` dan `/api/v1/login` sekarang menyertakan `roles[]` dan `permissions[]`.
 
 ## Pemetaan Konsep Laravel → Express
 

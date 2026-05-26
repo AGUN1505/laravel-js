@@ -1,16 +1,17 @@
 const express = require('express');
 
 class Router {
-  constructor(expressRouter = null) {
-    this.router = expressRouter || express.Router({ mergeParams: true });
+  constructor() {
+    this.expressRouter = express.Router({ mergeParams: true });
+    this._scope = { prefix: '', middleware: [] };
   }
 
   prefix(path) {
-    return new RouteBuilder(this, { prefix: path });
+    return new Scope(this, { prefix: path, middleware: [] });
   }
 
   middleware(...mw) {
-    return new RouteBuilder(this, { middleware: mw });
+    return new Scope(this, { prefix: '', middleware: mw });
   }
 
   group(callback) {
@@ -18,11 +19,17 @@ class Router {
     return this;
   }
 
-  get(path, ...handlers) { this.router.get(path, ...handlers); return this; }
-  post(path, ...handlers) { this.router.post(path, ...handlers); return this; }
-  put(path, ...handlers) { this.router.put(path, ...handlers); return this; }
-  patch(path, ...handlers) { this.router.patch(path, ...handlers); return this; }
-  delete(path, ...handlers) { this.router.delete(path, ...handlers); return this; }
+  get(path, ...handlers) { return this._add('get', path, handlers); }
+  post(path, ...handlers) { return this._add('post', path, handlers); }
+  put(path, ...handlers) { return this._add('put', path, handlers); }
+  patch(path, ...handlers) { return this._add('patch', path, handlers); }
+  delete(path, ...handlers) { return this._add('delete', path, handlers); }
+
+  _add(method, path, handlers) {
+    const fullPath = (this._scope.prefix + path) || '/';
+    this.expressRouter[method](fullPath, ...this._scope.middleware, ...handlers);
+    return this;
+  }
 
   resource(name, controller, options = {}) {
     const base = name.startsWith('/') ? name : `/${name}`;
@@ -46,44 +53,44 @@ class Router {
   }
 
   toExpress() {
-    return this.router;
+    return this.expressRouter;
   }
 }
 
-class RouteBuilder {
-  constructor(parent, options = {}) {
-    this.parent = parent;
-    this._prefix = options.prefix || '';
-    this._middleware = options.middleware || [];
+class Scope {
+  constructor(router, opts) {
+    this.router = router;
+    this._prefix = opts.prefix || '';
+    this._middleware = opts.middleware || [];
   }
 
   prefix(path) {
-    return new RouteBuilder(this.parent, {
+    return new Scope(this.router, {
       prefix: this._prefix + path,
       middleware: this._middleware,
     });
   }
 
   middleware(...mw) {
-    return new RouteBuilder(this.parent, {
+    return new Scope(this.router, {
       prefix: this._prefix,
       middleware: [...this._middleware, ...mw],
     });
   }
 
   group(callback) {
-    const subRouter = express.Router({ mergeParams: true });
-
-    if (this._middleware.length) {
-      subRouter.use(...this._middleware);
+    const saved = this.router._scope;
+    this.router._scope = {
+      prefix: saved.prefix + this._prefix,
+      middleware: [...saved.middleware, ...this._middleware],
+    };
+    try {
+      callback(this.router);
+    } finally {
+      this.router._scope = saved;
     }
-
-    const subContext = new Router(subRouter);
-    callback(subContext);
-
-    this.parent.router.use(this._prefix || '/', subRouter);
-    return this.parent;
+    return this.router;
   }
 }
 
-module.exports = { Router, RouteBuilder };
+module.exports = { Router, Scope };

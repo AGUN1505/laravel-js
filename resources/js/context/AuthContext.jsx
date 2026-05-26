@@ -36,8 +36,33 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refresh = async () => {
+    const res = await api.get('/me');
+    setUser(res.data.data);
+    return res.data.data;
+  };
+
+  const isSuperAdmin = () => !!user && user.roles?.includes('superadmin');
+
+  const hasRole = (...roles) => {
+    if (!user) return false;
+    if (isSuperAdmin()) return true;
+    const list = roles.flat();
+    return list.some((r) => user.roles?.includes(r));
+  };
+
+  const hasPermission = (...permissions) => {
+    if (!user) return false;
+    if (isSuperAdmin()) return true;
+    const list = permissions.flat();
+    return list.some((p) => user.permissions?.includes(p));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user, loading, login, register, logout, refresh,
+      isSuperAdmin, hasRole, hasPermission,
+    }}>
       {children}
     </AuthContext.Provider>
   );

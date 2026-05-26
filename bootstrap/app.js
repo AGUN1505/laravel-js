@@ -26,6 +26,7 @@ app.use(session({
 }));
 
 const apiRoutes = require('../routes/api');
+require('../app/Models'); // register associations
 app.use('/api', apiRoutes);
 
 app.use((err, req, res, next) => {
