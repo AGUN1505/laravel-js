@@ -1,0 +1,40 @@
+{
+  "name": "laravel-express",
+  "version": "1.0.0",
+  "description": "Express.js project with Laravel-style architecture + React",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev:server": "nodemon server.js",
+    "dev:client": "vite",
+    "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "artisan": "node artisan.js",
+    "migrate": "node artisan.js migrate",
+    "seed": "node artisan.js db:seed"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "method-override": "^3.0.0",
+    "morgan": "^1.10.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "sequelize": "^6.35.0",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1",
+    "vite": "^5.0.0"
+  }
+}
